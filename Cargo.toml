@@ -1,0 +1,13 @@
+[package]
+name = "secondary_rewriter"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/cmdcolin/secondary_rewriter"
+description = "Adds SEQ and QUAL fields to secondary alignments which are often missing from minimap2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "3.2", features = ["derive"] }
