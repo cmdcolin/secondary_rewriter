@@ -68,10 +68,3 @@ SEQ/QUAL fields (and skips all other data). the default mode without this flag
 passes all other alignments through stdout and adds the secondary alignments at
 the end
 
-## Note
-
-My second rust project!
-
-```
-
-```
