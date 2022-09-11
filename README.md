@@ -29,8 +29,24 @@ samtools view -h yourfile.bam | secondary_rewriter --secondaries secondaries.txt
 
 ```
 
-You can package this into a small bash script (supports CRAM) see
-[write_secondaries.sh](write_secondaries.sh)
+You can package this into a small bash script (supports CRAM)
+
+```
+
+#!/bin/bash
+
+# write_secondaries.sh
+# usage
+# ./write_secondaries.sh <input.cram> <ref.fa> <output.cram> <nthreads default 4>
+# e.g.
+# ./write_secondaries.sh input.cram ref.fa output.cram 16
+
+THREADS=${4:-4}
+
+samtools view -@$THREADS $1 -f 256 -T $2 | gzip -c > secondaries.txt.gz
+samtools view -@$THREADS -h $1 -T $2 | secondary_rewriter --pass2 --secondaries secondaries.txt.gz | samtools sort -@$THREADS --reference $2 -o $3
+
+```
 
 The two-pass strategy works as follows
 
@@ -67,4 +83,3 @@ OPTIONS:
 SEQ/QUAL fields (and skips all other data). the default mode without this flag
 passes all other alignments through stdout and adds the secondary alignments at
 the end
-
