@@ -32,6 +32,20 @@ samtools view -h yourfile.bam | secondary_rewriter --pass2 --secondaries seconda
 samtools sort out.bam -o out.sorted.bam
 ```
 
+You can package this into a small bash script
+
+```
+#!/bin/bash
+
+# write_secondaries.sh
+# example usage
+# ./write_secondaries.sh input.cram ref.fa output.cram
+
+
+samtools view -@3 $1 -T $2 | secondary_rewriter --pass1 > secondaries.txt
+samtools view -@3 -h $1 -T $2 | secondary_rewriter --pass2 --secondaries secondaries.txt | samtools view -@3 -T $2 - -o $3
+```
+
 The two-pass strategy works as follows
 
 1. First pass: output ALL secondary alignments (reads with flag 256) to a separate file
@@ -43,6 +57,7 @@ the entire SAM/BAM/CRAM into memory
 ## Help
 
 ```
+
 % secondary_rewriter --help
 secondary_rewriter 0.1.0
 Adds SEQ and QUAL fields to secondary alignments which are often missing from minimap2
@@ -57,6 +72,7 @@ OPTIONS:
 --pass2
 -s, --secondaries <SECONDARIES>
 -V, --version Print version information
+
 ```
 
 `--output-only-new-data` only outputs the secondary alignments with their new
@@ -67,3 +83,7 @@ the end
 ## Note
 
 My second rust project!
+
+```
+
+```

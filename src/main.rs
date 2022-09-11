@@ -67,7 +67,7 @@ fn main() -> Result<(), &'static str> {
     for l in stdin.lock().lines() {
       match l {
         Ok(line) => {
-          if &line[0..1] != "@" {
+          if line.len() > 0 && &line[0..1] != "@" {
             let (qname, flag) = get_qname_and_flags(&line);
 
             // don't print secondaries again till the end, which are obtained from
