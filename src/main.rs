@@ -116,6 +116,7 @@ fn match_pos(iter: &mut MatchIndices<char>, n: usize, s: &str) -> usize {
     None => panic!("Error at line {}", s),
   }
 }
+
 fn get_seq_and_qual(s: &str) -> (String, String) {
   let mut iter = s.match_indices('\t');
   let i = match_pos(&mut iter, 8, s) + 1;
