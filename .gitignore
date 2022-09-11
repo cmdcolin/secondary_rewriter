@@ -3,3 +3,6 @@
 *.bam
 *.txt
 *.sam
+*.gz
+*.gzi
+*.fai

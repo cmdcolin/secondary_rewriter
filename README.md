@@ -22,31 +22,20 @@ cargo install secondary_rewriter
 
 ```
 ## First pass
-samtools view yourfile.bam | secondary_rewriter --pass1 > secondaries.txt
+samtools view -f256 yourfile.bam > secondaries.txt
 
 ## Second pass
-samtools view -h yourfile.bam | secondary_rewriter --pass2 --secondaries secondaries.txt | samtools sort -o out.bam
+samtools view -h yourfile.bam | secondary_rewriter --secondaries secondaries.txt | samtools sort -o out.bam
 
 ```
 
-You can package this into a small bash script (supports CRAM)
-
-```
-#!/bin/bash
-
-# write_secondaries.sh
-# example usage
-# ./write_secondaries.sh input.cram ref.fa output.cram
-
-
-samtools view -@3 $1 -T $2 | secondary_rewriter --pass1 | gzip -c > secondaries.txt.gz
-samtools view -@3 -h $1 -T $2 | secondary_rewriter --pass2 --secondaries secondaries.txt.gz | samtools sort -@3 --reference $2 -o $3
-```
+You can package this into a small bash script (supports CRAM) see
+[write_secondaries.sh](write_secondaries.sh)
 
 The two-pass strategy works as follows
 
 1. First pass: output ALL secondary alignments (reads with flag 256) to a
-   separate file
+   separate file (plaintext or gzip)
 2. Second pass: reading secondary alignments into memory, and then scan
    original SAM/BAM/CRAM to add SEQ and QUAL fields encountered during scan to
    the secondary alignments that are stored in a hashmap
@@ -59,19 +48,18 @@ the entire SAM/BAM/CRAM into memory
 ```
 
 % secondary_rewriter --help
-secondary_rewriter 0.1.0
-Adds SEQ and QUAL fields to secondary alignments which are often missing from minimap2
+
+secondary_rewriter 0.1.2
+Adds SEQ and QUAL fields to secondary alignments from the primary alignment
 
 USAGE:
-secondary_rewriter [OPTIONS]
+    secondary_rewriter [OPTIONS]
 
 OPTIONS:
--h, --help Print help information
---output-only-new-data
---pass1
---pass2
--s, --secondaries <SECONDARIES>
--V, --version Print version information
+    -h, --help                         Print help information
+        --output-only-new-data
+    -s, --secondaries <SECONDARIES>
+    -V, --version                      Print version information
 
 ```
 
