@@ -1,7 +1,9 @@
 use clap::Parser;
+use flate2::read::GzDecoder;
 use std::collections::HashMap;
+use std::ffi::OsStr;
 use std::fs::File;
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, BufReader};
 use std::path::Path;
 
 #[derive(Parser, Debug)]
@@ -18,6 +20,22 @@ struct Args {
 
   #[clap(long, required(false), takes_value(false))]
   output_only_new_data: bool,
+}
+
+// Read normal or compressed files seamlessly
+// Uses the presence of a `gz` extension to choose between the two
+pub fn reader(filename: &str) -> Box<dyn BufRead> {
+  let path = Path::new(filename);
+  let file = match File::open(&path) {
+    Err(e) => panic!("couldn't open {} {}", path.display(), e),
+    Ok(file) => file,
+  };
+
+  if path.extension() == Some(OsStr::new("gz")) {
+    Box::new(BufReader::with_capacity(128 * 1024, GzDecoder::new(file)))
+  } else {
+    Box::new(BufReader::with_capacity(128 * 1024, file))
+  }
 }
 
 fn main() -> Result<(), &'static str> {
@@ -39,18 +57,12 @@ fn main() -> Result<(), &'static str> {
       }
     }
   } else if args.pass2 {
-    // let mut set = HashSet::new();
     let mut seqmap: HashMap<String, Option<(String, String)>> = HashMap::new();
-    // File hosts must exist in current path before this produces output
-    //
-    //
     let filename = args.secondaries.unwrap();
-    if let Ok(lines) = read_lines(&filename) {
-      for line in lines {
-        let l = line.unwrap();
-        let qname = get_qname(&l);
-        seqmap.insert(qname.to_string(), None);
-      }
+    for line in reader(&filename).lines() {
+      let l = line.unwrap();
+      let qname = get_qname(&l);
+      seqmap.insert(qname.to_string(), None);
     }
     for l in stdin.lock().lines() {
       match l {
@@ -81,32 +93,20 @@ fn main() -> Result<(), &'static str> {
         Err(e) => eprintln!("{}", e),
       }
     }
-    if let Ok(lines) = read_lines(&filename) {
-      for line in lines {
-        let l = line.unwrap();
-        let qname = get_qname(&l);
-        match seqmap.get(&qname).unwrap() {
-          Some(e) => {
-            let (seq, qual) = e;
-            println!("{}", rewrite_seq_qual(&l, &seq, &qual));
-          }
-          None => eprintln!("Primary record for QNAME not found: {}", qname),
+    for line in reader(&filename).lines() {
+      let l = line.unwrap();
+      let qname = get_qname(&l);
+      match seqmap.get(&qname).unwrap() {
+        Some(e) => {
+          let (seq, qual) = e;
+          println!("{}", rewrite_seq_qual(&l, &seq, &qual));
         }
+        None => eprintln!("Primary record for QNAME not found: {}", qname),
       }
     }
   }
 
   Ok(())
-}
-
-// The output is wrapped in a Result to allow matching on errors
-// Returns an Iterator to the Reader of the lines of the file.
-fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
-where
-  P: AsRef<Path>,
-{
-  let file = File::open(filename)?;
-  Ok(io::BufReader::new(file).lines())
 }
 
 fn get_seq_and_qual(s: &str) -> (String, String) {

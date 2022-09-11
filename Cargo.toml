@@ -11,3 +11,4 @@ description = "Adds SEQ and QUAL fields to secondary alignments which are often 
 
 [dependencies]
 clap = { version = "3.2", features = ["derive"] }
+flate2 = "1"
