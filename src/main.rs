@@ -5,6 +5,7 @@ use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 use std::path::Path;
+use std::str::MatchIndices;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -108,24 +109,21 @@ fn main() -> Result<(), &'static str> {
 
   Ok(())
 }
-
-fn get_seq_and_qual(s: &str) -> (String, String) {
-  let mut iter = s.match_indices('\t');
-  let i = match iter.nth(8) {
-    Some(v) => v.0 + 1,
-    None => panic!("Error at line {}", s),
-  };
-  let l = match iter.nth(0) {
+#[inline(always)]
+fn match_pos(iter: &mut MatchIndices<char>, n: usize, s: &str) -> usize {
+  match iter.nth(n) {
     Some(v) => v.0,
     None => panic!("Error at line {}", s),
-  };
+  }
+}
+fn get_seq_and_qual(s: &str) -> (String, String) {
+  let mut iter = s.match_indices('\t');
+  let i = match_pos(&mut iter, 8, s) + 1;
+  let l = match_pos(&mut iter, 0, s);
   let seq = &s[i..l];
 
   let i2 = l + 1;
-  let l2 = match iter.nth(0) {
-    Some(v) => v.0,
-    None => panic!("Error at line {}", s),
-  };
+  let l2 = match_pos(&mut iter, 0, s);
   let qual = &s[i2..l2];
 
   (String::from(seq), String::from(qual))
@@ -133,15 +131,9 @@ fn get_seq_and_qual(s: &str) -> (String, String) {
 
 fn rewrite_seq_qual(s: &str, seq: &str, qual: &str) -> String {
   let mut iter = s.match_indices('\t');
-  let i = match iter.nth(8) {
-    Some(v) => v.0,
-    None => panic!("Error at line {}", s),
-  };
+  let i = match_pos(&mut iter, 8, s);
+  let j = match_pos(&mut iter, 1, s);
 
-  let j = match iter.nth(1) {
-    Some(v) => v.0,
-    None => panic!("Error at line {}", s),
-  };
   let start = &s[0..i];
   let end = &s[j..];
   format!("{}\t{}\t{}{}", start, seq, qual, end)
@@ -149,29 +141,18 @@ fn rewrite_seq_qual(s: &str, seq: &str, qual: &str) -> String {
 
 fn get_flags(s: &str) -> u16 {
   let mut iter = s.match_indices('\t');
-  let j = match iter.nth(0) {
-    Some(v) => v.0,
-    None => panic!("Error at line {}", s),
-  };
-  let k = match iter.nth(0) {
-    Some(v) => v.0,
-    None => panic!("Error at line {}", s),
-  };
-  let flags = &s[j + 1..k];
+  let j = match_pos(&mut iter, 0, s) + 1;
+  let k = match_pos(&mut iter, 0, s);
+  let flags = &s[j..k];
   flags.parse::<u16>().unwrap()
 }
 
 fn get_qname_and_flags(s: &str) -> (String, u16) {
   let mut iter = s.match_indices('\t');
-  let j = match iter.nth(0) {
-    Some(v) => v.0,
-    None => panic!("Error at line {}", s),
-  };
+  let j = match_pos(&mut iter, 0, s);
+
   let qname = &s[0..j];
-  let k = match iter.nth(0) {
-    Some(v) => v.0,
-    None => panic!("Error at line {}", s),
-  };
+  let k = match_pos(&mut iter, 0, s);
   let flags = &s[j + 1..k];
   let f = flags.parse::<u16>().unwrap();
   (String::from(qname), f)
@@ -179,9 +160,6 @@ fn get_qname_and_flags(s: &str) -> (String, u16) {
 
 fn get_qname(s: &str) -> String {
   let mut iter = s.match_indices('\t');
-  let j = match iter.nth(0) {
-    Some(v) => v.0,
-    None => panic!("Error at line {}", s),
-  };
+  let j = match_pos(&mut iter, 0, s);
   String::from(&s[0..j])
 }
