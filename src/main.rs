@@ -111,12 +111,21 @@ fn main() -> Result<(), &'static str> {
 
 fn get_seq_and_qual(s: &str) -> (String, String) {
   let mut iter = s.match_indices('\t');
-  let i = iter.nth(8).unwrap().0 + 1;
-  let l = iter.nth(0).unwrap().0;
+  let i = match iter.nth(8) {
+    Some(v) => v.0 + 1,
+    None => panic!("Error at line {}", s),
+  };
+  let l = match iter.nth(0) {
+    Some(v) => v.0,
+    None => panic!("Error at line {}", s),
+  };
   let seq = &s[i..l];
 
   let i2 = l + 1;
-  let l2 = iter.nth(0).unwrap().0;
+  let l2 = match iter.nth(0) {
+    Some(v) => v.0,
+    None => panic!("Error at line {}", s),
+  };
   let qual = &s[i2..l2];
 
   (String::from(seq), String::from(qual))
@@ -124,8 +133,15 @@ fn get_seq_and_qual(s: &str) -> (String, String) {
 
 fn rewrite_seq_qual(s: &str, seq: &str, qual: &str) -> String {
   let mut iter = s.match_indices('\t');
-  let i = iter.nth(8).unwrap().0;
-  let j = iter.nth(1).unwrap().0;
+  let i = match iter.nth(8) {
+    Some(v) => v.0,
+    None => panic!("Error at line {}", s),
+  };
+
+  let j = match iter.nth(1) {
+    Some(v) => v.0,
+    None => panic!("Error at line {}", s),
+  };
   let start = &s[0..i];
   let end = &s[j..];
   format!("{}\t{}\t{}{}", start, seq, qual, end)
@@ -133,17 +149,29 @@ fn rewrite_seq_qual(s: &str, seq: &str, qual: &str) -> String {
 
 fn get_flags(s: &str) -> u16 {
   let mut iter = s.match_indices('\t');
-  let j = iter.nth(0).unwrap().0;
-  let k = iter.nth(0).unwrap().0;
+  let j = match iter.nth(0) {
+    Some(v) => v.0,
+    None => panic!("Error at line {}", s),
+  };
+  let k = match iter.nth(0) {
+    Some(v) => v.0,
+    None => panic!("Error at line {}", s),
+  };
   let flags = &s[j + 1..k];
   flags.parse::<u16>().unwrap()
 }
 
 fn get_qname_and_flags(s: &str) -> (String, u16) {
   let mut iter = s.match_indices('\t');
-  let j = iter.nth(0).unwrap().0;
+  let j = match iter.nth(0) {
+    Some(v) => v.0,
+    None => panic!("Error at line {}", s),
+  };
   let qname = &s[0..j];
-  let k = iter.nth(0).unwrap().0;
+  let k = match iter.nth(0) {
+    Some(v) => v.0,
+    None => panic!("Error at line {}", s),
+  };
   let flags = &s[j + 1..k];
   let f = flags.parse::<u16>().unwrap();
   (String::from(qname), f)
@@ -151,6 +179,9 @@ fn get_qname_and_flags(s: &str) -> (String, u16) {
 
 fn get_qname(s: &str) -> String {
   let mut iter = s.match_indices('\t');
-  let j = iter.nth(0).unwrap().0;
+  let j = match iter.nth(0) {
+    Some(v) => v.0,
+    None => panic!("Error at line {}", s),
+  };
   String::from(&s[0..j])
 }

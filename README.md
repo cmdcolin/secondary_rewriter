@@ -48,8 +48,11 @@ samtools view -@3 -h $1 -T $2 | secondary_rewriter --pass2 --secondaries seconda
 
 The two-pass strategy works as follows
 
-1. First pass: output ALL secondary alignments (reads with flag 256) to a separate file
-2. Second pass: reading secondary alignments into memory, and then scan original SAM/BAM/CRAM to add SEQ and QUAL fields encountered during scan to the secondary alignments that are stored in a hashmap
+1. First pass: output ALL secondary alignments (reads with flag 256) to a
+   separate file
+2. Second pass: reading secondary alignments into memory, and then scan
+   original SAM/BAM/CRAM to add SEQ and QUAL fields encountered during scan to
+   the secondary alignments that are stored in a hashmap
 
 It uses a two-pass strategy because otherwise it would have to effectively load
 the entire SAM/BAM/CRAM into memory
