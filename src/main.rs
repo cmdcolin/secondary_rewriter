@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Lines};
+use std::io::{self, BufRead, BufReader};
 use std::path::Path;
 use std::str::MatchIndices;
 
@@ -13,19 +13,8 @@ use std::str::MatchIndices;
 struct Args {
   #[clap(short, long, required(false), value_parser)]
   secondaries: Option<String>,
-
-  #[clap(long, required(false), takes_value(false))]
-  pass1: bool,
-
-  #[clap(long, required(false), takes_value(false))]
-  pass2: bool,
-
-  #[clap(long, required(false), takes_value(false))]
-  pass3: bool,
 }
 
-// Read normal or compressed files seamlessly
-// Uses the presence of a `gz` extension to choose between the two
 pub fn reader(filename: &str) -> Box<dyn BufRead> {
   let path = Path::new(filename);
   let file = match File::open(&path) {
@@ -44,108 +33,59 @@ fn main() -> Result<(), Box<dyn Error>> {
   let stdin = io::stdin();
   let args = Args::parse();
 
-  if args.pass1 {
-    let mut lineno = 0;
-    for l in stdin.lock().lines() {
-      match l {
-        Ok(line) => {
-          if &line[0..1] != "@" {
-            let flag = get_flags(&line);
-            if flag & 256 > 0 {
-              println!("{}\t{}", lineno, line)
-            }
-            lineno += 1;
-          }
-        }
-        Err(e) => eprintln!("{}", e),
+  // if multiple secondaries with same QNAME, store each in VEC
+  let mut seqmap: HashMap<String, Vec<String>> = HashMap::new();
+  let filename = args.secondaries.unwrap();
+
+  for l in reader(&filename).lines() {
+    let line = l.unwrap();
+    let qname = String::from(get_qname(&line));
+    match seqmap.get_mut(&qname) {
+      Some(vec) => {
+        vec.push(line);
+      }
+      None => {
+        seqmap.insert(qname.to_string(), vec![line]);
       }
     }
-  } else if args.pass2 {
-    let mut seqmap: HashMap<String, Vec<usize>> = HashMap::new();
-    let filename = args.secondaries.unwrap();
+  }
 
-    for l in reader(&filename).lines() {
-      let line = l.unwrap();
-      let (lineno, qname) = get_qname_and_lineno_secondaries_file(&line);
-      match seqmap.get_mut(&qname) {
-        Some(vec) => {
-          vec.push(lineno);
-        }
-        None => {
-          seqmap.insert(qname.to_string(), vec![lineno]);
-        }
-      }
-    }
+  for l in stdin.lock().lines() {
+    match l {
+      Ok(line) => {
+        if &line[0..1] != "@" {
+          let (qname, flag) = get_qname_and_flags(&line);
 
-    for l in stdin.lock().lines() {
-      match l {
-        Ok(line) => {
-          if &line[0..1] != "@" {
-            let (qname, flag) = get_qname_and_flags(&line);
+          // if it passes this check, it is a primary alignment which we can get SEQ+QUAL from.
+          // reason: it's not secondary because input to this program uses -F256 to
+          // filter out secondaries and not supplementary, which do have SEQ but can be
+          // hard clipped)
+          if flag & 2048 == 0 && seqmap.contains_key(&qname) {
+            let (seq, qual) = get_seq_and_qual(&line);
 
-            // don't print secondaries again till the end, which are obtained from
-            // secondaries.txt. filter out supplementary alignments also: look for
-            // actual primary alignment
-            if flag & 256 == 0 && flag & 2048 == 0 && seqmap.contains_key(&qname) {
-              match seqmap.get(&qname) {
-                Some(list) => {
-                  for lineno in list {
-                    let (seq, qual) = get_seq_and_qual(&line);
-                    println!("{}\t{}\t{}", lineno, seq, qual);
-                  }
+            // output secondaries (this implies out-of-order lines now, requires the
+            // pipe-to-sort
+            match seqmap.get(&qname) {
+              Some(list) => {
+                for secondary_line in list {
+                  let mut vec: Vec<&str> = secondary_line.split("\t").collect();
+                  vec[9] = &seq;
+                  vec[10] = &qual;
+                  println!("{}", vec.join("\t"));
                 }
-                None => {}
-              };
-            }
+              }
+              None => {}
+            };
           }
         }
-        Err(e) => eprintln!("{}", e),
+        // output primary and header lines as usual
+        println!("{}", line)
       }
-    }
-  } else if args.pass3 {
-    let filename = args.secondaries.unwrap();
-    let mut iter = reader(&filename).lines();
-    let mut tup = get_next(&mut iter);
-    let mut lineno: i64 = 0;
-    for l in stdin.lock().lines() {
-      match l {
-        Ok(line) => {
-          if &line[0..1] != "@" {
-            if lineno == tup.0 {
-              let split = line.split("\t");
-              let mut vec: Vec<&str> = split.collect();
-              vec[9] = &tup.1;
-              vec[10] = &tup.2;
-              println!("{}", vec.join("\t"));
-              tup = get_next(&mut iter);
-            } else {
-              println!("{}", line)
-            }
-            lineno += 1;
-          } else {
-            println!("{}", line);
-          }
-        }
-        Err(e) => eprintln!("{}", e),
-      }
+      Err(e) => eprintln!("{}", e),
     }
   }
 
   Ok(())
-}
-
-fn get_next(iter: &mut Lines<Box<dyn BufRead>>) -> (i64, String, String) {
-  match iter.next() {
-    Some(p) => {
-      let str = p.unwrap();
-      let mut split = str.split("\t");
-      let lineno = split.next().unwrap().parse::<i64>().unwrap();
-      let seq = split.next().unwrap();
-      let qual = split.next().unwrap();
-      (lineno, seq.to_string(), qual.to_string())
-    }
-    None => (-1, "".to_string(), "".to_string()),
-  }
 }
 
 #[inline(always)]
@@ -156,7 +96,7 @@ fn match_pos(iter: &mut MatchIndices<char>, n: usize, s: &str) -> usize {
   }
 }
 
-fn get_seq_and_qual(s: &str) -> (String, String) {
+fn get_seq_and_qual(s: &str) -> (&str, &str) {
   let mut iter = s.match_indices('\t');
   let i = match_pos(&mut iter, 8, s) + 1;
   let l = match_pos(&mut iter, 0, s);
@@ -166,7 +106,7 @@ fn get_seq_and_qual(s: &str) -> (String, String) {
   let l2 = match_pos(&mut iter, 0, s);
   let qual = &s[i2..l2];
 
-  (String::from(seq), String::from(qual))
+  (seq, qual)
 }
 
 fn get_qname_and_flags(s: &str) -> (String, u16) {
@@ -180,21 +120,8 @@ fn get_qname_and_flags(s: &str) -> (String, u16) {
   (String::from(qname), f)
 }
 
-// this is from a SAM-like format that has line number of it's position in the original file
-// prepended
-fn get_qname_and_lineno_secondaries_file(s: &str) -> (usize, String) {
+fn get_qname(s: &str) -> &str {
   let mut iter = s.match_indices('\t');
   let j = match_pos(&mut iter, 0, s);
-  let k = match_pos(&mut iter, 0, s);
-  let lineno = &s[0..j];
-
-  (lineno.parse::<usize>().unwrap(), String::from(&s[j + 1..k]))
-}
-
-fn get_flags(s: &str) -> u16 {
-  let mut iter = s.match_indices('\t');
-  let j = match_pos(&mut iter, 0, s) + 1;
-  let k = match_pos(&mut iter, 0, s);
-  let flags = &s[j..k];
-  flags.parse::<u16>().unwrap()
+  &s[0..j]
 }
