@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader};
+use std::io::{self, BufRead, BufReader, Lines};
 use std::path::Path;
 use std::str::MatchIndices;
 
@@ -100,20 +100,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
   } else if args.pass3 {
     let filename = args.secondaries.unwrap();
-    let mut seqmap = HashMap::new();
-    for l in reader(&filename).lines() {
-      let line = l.unwrap();
-      let (lineno, rest) = line.split_once("\t").unwrap();
-      seqmap.insert(lineno.parse::<usize>().unwrap(), String::from(rest));
-    }
-
-    let mut i: usize = 0;
+    let mut iter = reader(&filename).lines();
+    let mut tup = get_next(&mut iter);
+    let mut i: i64 = 0;
     for l in stdin.lock().lines() {
       match l {
         Ok(line) => {
           if &line[0..1] != "@" {
-            if seqmap.contains_key(&i) {
-              println!("{}", seqmap.get(&i).unwrap());
+            if i == tup.0 {
+              println!("{}", tup.1);
+              tup = get_next(&mut iter);
             } else {
               println!("{}", line)
             }
@@ -130,6 +126,18 @@ fn main() -> Result<(), Box<dyn Error>> {
 
   Ok(())
 }
+
+fn get_next(iter: &mut Lines<Box<dyn BufRead>>) -> (i64, String) {
+  match iter.next() {
+    Some(p) => {
+      let str = p.unwrap();
+      let (lineno, rest) = str.split_once("\t").unwrap();
+      (lineno.parse::<i64>().unwrap(), String::from(rest))
+    }
+    None => (-1, String::from("")),
+  }
+}
+
 #[inline(always)]
 fn match_pos(iter: &mut MatchIndices<char>, n: usize, s: &str) -> usize {
   match iter.nth(n) {
