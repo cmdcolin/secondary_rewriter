@@ -8,10 +8,20 @@
 
 THR=${4:-4}
 
+echo "Filtering secondary reads to sec.txt..."
 samtools view -@$THR -h $1 -T $2 | secondary_rewriter --pass1 > sec.txt
-echo Done pass 1
+
+
+echo "Applying seq and qual to secondary reads to sec2.txt..."
 samtools view -@$THR -h $1 -T $2 | secondary_rewriter --pass2 --secondaries sec.txt > sec2.txt
 echo Done pass 2
-samtools view -@$THR -h $1 -T $2 | secondary_rewriter --pass3 --secondaries sec2.txt.gz | samtools view -@$THR -T $2 - -o $3
-echo Done pass 3
+
+echo "Sorting sec2.txt by line number..."
+LC_ALL=C sort -k1,1n sec2.txt > sec3.txt
+
+
+echo "Re-writing file to $3..."
+samtools view -@$THR -h $1 -T $2 | secondary_rewriter --pass3 --secondaries sec3.txt | samtools view -@$THR -T $2 - -o $3
+
+echo "Finished!"
 

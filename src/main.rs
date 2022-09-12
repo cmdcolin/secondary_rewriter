@@ -61,12 +61,20 @@ fn main() -> Result<(), Box<dyn Error>> {
       }
     }
   } else if args.pass2 {
-    let mut seqmap: HashMap<String, Option<(String, String)>> = HashMap::new();
+    let mut seqmap: HashMap<String, Vec<usize>> = HashMap::new();
     let filename = args.secondaries.unwrap();
+
     for l in reader(&filename).lines() {
       let line = l.unwrap();
-      let (_lineno, qname) = get_qname_and_lineno_secondaries_file(&line);
-      seqmap.insert(qname.to_string(), None);
+      let (lineno, qname) = get_qname_and_lineno_secondaries_file(&line);
+      match seqmap.get_mut(&qname) {
+        Some(vec) => {
+          vec.push(lineno);
+        }
+        None => {
+          seqmap.insert(qname.to_string(), vec![lineno]);
+        }
+      }
     }
 
     for l in stdin.lock().lines() {
@@ -79,42 +87,41 @@ fn main() -> Result<(), Box<dyn Error>> {
             // secondaries.txt. filter out supplementary alignments also: look for
             // actual primary alignment
             if flag & 256 == 0 && flag & 2048 == 0 && seqmap.contains_key(&qname) {
-              seqmap.insert(qname, Some(get_seq_and_qual(&line)));
+              match seqmap.get(&qname) {
+                Some(list) => {
+                  for lineno in list {
+                    let (seq, qual) = get_seq_and_qual(&line);
+                    println!("{}\t{}\t{}", lineno, seq, qual);
+                  }
+                }
+                None => {}
+              };
             }
           }
         }
         Err(e) => eprintln!("{}", e),
       }
     }
-
-    for l in reader(&filename).lines() {
-      let line = l.unwrap();
-      let (_lineno, qname) = get_qname_and_lineno_secondaries_file(&line);
-      match seqmap.get(&qname).unwrap() {
-        Some(e) => {
-          let (seq, qual) = e;
-          println!("{}", rewrite_seq_qual(&line, &seq, &qual));
-        }
-        None => eprintln!("Primary record for QNAME not found: {}", qname),
-      }
-    }
   } else if args.pass3 {
     let filename = args.secondaries.unwrap();
     let mut iter = reader(&filename).lines();
     let mut tup = get_next(&mut iter);
-    let mut i: i64 = 0;
+    let mut lineno: i64 = 0;
     for l in stdin.lock().lines() {
       match l {
         Ok(line) => {
           if &line[0..1] != "@" {
-            if i == tup.0 {
-              println!("{}", tup.1);
+            if lineno == tup.0 {
+              let split = line.split("\t");
+              let mut vec: Vec<&str> = split.collect();
+              vec[9] = &tup.1;
+              vec[10] = &tup.2;
+              println!("{}", vec.join("\t"));
               tup = get_next(&mut iter);
             } else {
               println!("{}", line)
             }
-
-            i += 1;
+            lineno += 1;
           } else {
             println!("{}", line);
           }
@@ -127,14 +134,17 @@ fn main() -> Result<(), Box<dyn Error>> {
   Ok(())
 }
 
-fn get_next(iter: &mut Lines<Box<dyn BufRead>>) -> (i64, String) {
+fn get_next(iter: &mut Lines<Box<dyn BufRead>>) -> (i64, String, String) {
   match iter.next() {
     Some(p) => {
       let str = p.unwrap();
-      let (lineno, rest) = str.split_once("\t").unwrap();
-      (lineno.parse::<i64>().unwrap(), String::from(rest))
+      let mut split = str.split("\t");
+      let lineno = split.next().unwrap().parse::<i64>().unwrap();
+      let seq = split.next().unwrap();
+      let qual = split.next().unwrap();
+      (lineno, seq.to_string(), qual.to_string())
     }
-    None => (-1, String::from("")),
+    None => (-1, "".to_string(), "".to_string()),
   }
 }
 
@@ -157,16 +167,6 @@ fn get_seq_and_qual(s: &str) -> (String, String) {
   let qual = &s[i2..l2];
 
   (String::from(seq), String::from(qual))
-}
-
-fn rewrite_seq_qual(s: &str, seq: &str, qual: &str) -> String {
-  let mut iter = s.match_indices('\t');
-  let i = match_pos(&mut iter, 9, s);
-  let j = match_pos(&mut iter, 1, s);
-
-  let start = &s[0..i];
-  let end = &s[j..];
-  format!("{}\t{}\t{}{}", start, seq, qual, end)
 }
 
 fn get_qname_and_flags(s: &str) -> (String, u16) {
