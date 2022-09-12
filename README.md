@@ -5,8 +5,9 @@ secondary alignments (https://github.com/lh3/minimap2/issues/458) making it
 hard to analyze them (for example, SNPs will not be visible in a genome browser
 for secondary alignments). This program adds these back, referring to the
 primary alignment to get the SEQ and QUAL, and adding them to the secondaries.
-This is a two-pass program. The first pass collects the secondary alignments
-and the second adds the SEQ and QUAL fields to the secondaries.
+This is a three-pass program. The first pass collects the secondary alignments
+into an external file the second adds the SEQ and QUAL fields to the external
+file, and then the third pass inserts the secondary alignments in place.
 
 ## Install
 
@@ -21,15 +22,12 @@ cargo install secondary_rewriter
 ## Usage
 
 ```
-## First pass
-samtools view -f256 yourfile.bam > secondaries.txt
-
-## Second pass
-samtools view -h yourfile.bam | secondary_rewriter --secondaries secondaries.txt | samtools sort -o out.bam
-
+samtools view file.bam | secondary_rewriter --pass1 > sec.txt
+samtools view file.bam | secondary_rewriter --pass2 --secondaries sec.txt > sec2.txt
+samtools view -h file.bam | secondary_rewriter --pass3 --secondaries sec2.txt | samtools view - -o out.bam
 ```
 
-You can package this into a small bash script (supports CRAM)
+This small shell script automates this (supports CRAM)
 
 ```
 
@@ -41,23 +39,32 @@ You can package this into a small bash script (supports CRAM)
 # e.g.
 # ./write_secondaries.sh input.cram ref.fa output.cram 16
 
-THREADS=${4:-4}
+THR=${4:-4}
 
-samtools view -@$THREADS $1 -f 256 -T $2 | gzip -c > secondaries.txt.gz
-samtools view -@$THREADS -h $1 -T $2 | secondary_rewriter --pass2 --secondaries secondaries.txt.gz | samtools sort -@$THREADS --reference $2 -o $3
+samtools view -@$THR -h $1 -T $2 | secondary_rewriter --pass1 > sec.txt
+echo Done pass 1
+samtools view -@$THR -h $1 -T $2 | secondary_rewriter --pass2 --secondaries sec.txt > sec2.txt
+echo Done pass 2
+samtools view -@$THR -h $1 -T $2 | secondary_rewriter --pass3 --secondaries sec2.txt.gz | samtools view -@$THR -T $2 - -o $3
+echo Done pass 3
+
 
 ```
 
-The two-pass strategy works as follows
+The three-pass strategy works as follows
 
 1. First pass: output ALL secondary alignments (reads with flag 256) to a
-   separate file (plaintext or gzip)
-2. Second pass: reading secondary alignments into memory, and then scan
-   original SAM/BAM/CRAM to add SEQ and QUAL fields encountered during scan to
-   the secondary alignments that are stored in a hashmap
+   external file
+2. Second pass: reading secondary alignments from external file into memory,
+   and then scan original SAM/BAM/CRAM to add SEQ and QUAL fields on the
+   primary alignments to the secondary alignments that are stored in a hashmap
+3. Third pass: the secondary alignments with the new SEQ and QUAL fields are
+   re-inserted in place into the SAM file, and re-encoded. By re-inserting them
+   in-place, it avoids a full `samtools sort` on the output which is
+   disk/memory/cpu intensive.
 
-It uses a two-pass strategy because otherwise it would have to effectively load
-the entire SAM/BAM/CRAM into memory
+This seems laborious, but the three-pass strategy avoids loading the entire
+SAM/BAM/CRAM into memory
 
 ## Help
 

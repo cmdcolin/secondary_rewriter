@@ -6,7 +6,12 @@
 # e.g.
 # ./write_secondaries.sh input.cram ref.fa output.cram 16
 
-THREADS=${4:-4}
+THR=${4:-4}
 
-samtools view -@$THREADS $1 -f 256 -T $2 | gzip -c > secondaries.txt.gz
-samtools view -@$THREADS -h $1 -T $2 | secondary_rewriter --pass2 --secondaries secondaries.txt.gz | samtools sort -@$THREADS --reference $2 -o $3
+samtools view -@$THR -h $1 -T $2 | secondary_rewriter --pass1 > sec.txt
+echo Done pass 1
+samtools view -@$THR -h $1 -T $2 | secondary_rewriter --pass2 --secondaries sec.txt > sec2.txt
+echo Done pass 2
+samtools view -@$THR -h $1 -T $2 | secondary_rewriter --pass3 --secondaries sec2.txt.gz | samtools view -@$THR -T $2 - -o $3
+echo Done pass 3
+
