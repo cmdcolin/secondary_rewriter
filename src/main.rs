@@ -22,9 +22,6 @@ struct Args {
 
   #[clap(long, required(false), takes_value(false))]
   pass3: bool,
-
-  #[clap(long, required(false), takes_value(false))]
-  output_only_new_data: bool,
 }
 
 // Read normal or compressed files seamlessly
@@ -88,36 +85,35 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         Err(e) => eprintln!("{}", e),
       }
+    }
 
-      for l in reader(&filename).lines() {
-        let line = l.unwrap();
-        let (lineno, qname) = get_qname_and_lineno_secondaries_file(&line);
-        match seqmap.get(&qname).unwrap() {
-          Some(e) => {
-            let (seq, qual) = e;
-            println!("{}\t{}", lineno, rewrite_seq_qual(&line, &seq, &qual));
-          }
-          None => eprintln!("Primary record for QNAME not found: {}", qname),
+    for l in reader(&filename).lines() {
+      let line = l.unwrap();
+      let (_lineno, qname) = get_qname_and_lineno_secondaries_file(&line);
+      match seqmap.get(&qname).unwrap() {
+        Some(e) => {
+          let (seq, qual) = e;
+          println!("{}", rewrite_seq_qual(&line, &seq, &qual));
         }
+        None => eprintln!("Primary record for QNAME not found: {}", qname),
       }
     }
   } else if args.pass3 {
     let filename = args.secondaries.unwrap();
-    let mut lineiter = reader(&filename).lines();
+    let mut seqmap = HashMap::new();
+    for l in reader(&filename).lines() {
+      let line = l.unwrap();
+      let (lineno, rest) = line.split_once("\t").unwrap();
+      seqmap.insert(lineno.parse::<usize>().unwrap(), String::from(rest));
+    }
 
-    let mut str = lineiter.next().unwrap().unwrap();
-    let mut tup = str.split_once("\t").unwrap();
-    let mut i = 0;
-    let mut lineno = tup.0.parse::<usize>().unwrap();
+    let mut i: usize = 0;
     for l in stdin.lock().lines() {
       match l {
         Ok(line) => {
           if &line[0..1] != "@" {
-            if lineno == i {
-              println!("{}", tup.1);
-              str = lineiter.next().unwrap().unwrap();
-              tup = str.split_once("\t").unwrap();
-              lineno = tup.0.parse::<usize>().unwrap();
+            if seqmap.contains_key(&i) {
+              println!("{}", seqmap.get(&i).unwrap());
             } else {
               println!("{}", line)
             }
@@ -157,7 +153,7 @@ fn get_seq_and_qual(s: &str) -> (String, String) {
 
 fn rewrite_seq_qual(s: &str, seq: &str, qual: &str) -> String {
   let mut iter = s.match_indices('\t');
-  let i = match_pos(&mut iter, 8, s);
+  let i = match_pos(&mut iter, 9, s);
   let j = match_pos(&mut iter, 1, s);
 
   let start = &s[0..i];

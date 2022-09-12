@@ -70,9 +70,6 @@ SAM/BAM/CRAM into memory
 
 ```
 
-% secondary_rewriter --help
-
-secondary_rewriter 0.1.2
 Adds SEQ and QUAL fields to secondary alignments from the primary alignment
 
 USAGE:
@@ -80,13 +77,10 @@ USAGE:
 
 OPTIONS:
     -h, --help                         Print help information
-        --output-only-new-data
+        --pass1
+        --pass2
+        --pass3
     -s, --secondaries <SECONDARIES>
     -V, --version                      Print version information
 
 ```
-
-`--output-only-new-data` only outputs the secondary alignments with their new
-SEQ/QUAL fields (and skips all other data). the default mode without this flag
-passes all other alignments through stdout and adds the secondary alignments at
-the end

@@ -1,5 +1,4 @@
 /target
-write_dev.sh
 *.cram
 *.bam
 *.txt
