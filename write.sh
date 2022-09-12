@@ -12,16 +12,11 @@ echo "Filtering secondary reads to sec.txt..."
 samtools view -@$THR -h $1 -T $2 | secondary_rewriter --pass1 > sec.txt
 
 
-echo "Applying seq and qual to secondary reads to sec2.txt..."
-samtools view -@$THR -h $1 -T $2 | secondary_rewriter --pass2 --secondaries sec.txt > sec2.txt
-echo Done pass 2
+echo "Applying seq and qual to secondary reads, and sorting by line, outputting to sec2.txt..."
+samtools view -@$THR -h $1 -T $2 | secondary_rewriter --pass2 --secondaries sec.txt | LC_ALL=C sort -k1,1n --parallel=$THR > sec2.txt
 
-echo "Sorting sec2.txt by line number..."
-LC_ALL=C sort -k1,1n sec2.txt > sec3.txt
-
-
-echo "Re-writing file to $3..."
-samtools view -@$THR -h $1 -T $2 | secondary_rewriter --pass3 --secondaries sec3.txt | samtools view -@$THR -T $2 - -o $3
+echo "Creating $3 with seq and qual on secondary reads..."
+samtools view -@$THR -h $1 -T $2 | secondary_rewriter --pass3 --secondaries sec2.txt | samtools view -@$THR -T $2 - -o $3
 
 echo "Finished!"
 

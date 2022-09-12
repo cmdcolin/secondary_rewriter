@@ -21,13 +21,7 @@ cargo install secondary_rewriter
 
 ## Usage
 
-```
-samtools view file.bam | secondary_rewriter --pass1 > sec.txt
-samtools view file.bam | secondary_rewriter --pass2 --secondaries sec.txt > sec2.txt
-samtools view -h file.bam | secondary_rewriter --pass3 --secondaries sec2.txt | samtools view - -o out.bam
-```
-
-This small shell script automates this (supports CRAM)
+This small shell script automates the multi-step pipeline (supports BAM or CRAM)
 
 ```
 
@@ -35,20 +29,23 @@ This small shell script automates this (supports CRAM)
 
 # write_secondaries.sh
 # usage
-# ./write_secondaries.sh <input.cram> <ref.fa> <output.cram> <nthreads default 4>
+# ./write_secondaries.sh <input.bam/cram> <ref.fa> <output.bam/cram> <nthreads default 4>
 # e.g.
 # ./write_secondaries.sh input.cram ref.fa output.cram 16
 
 THR=${4:-4}
 
+echo "Filtering secondary reads to sec.txt..."
 samtools view -@$THR -h $1 -T $2 | secondary_rewriter --pass1 > sec.txt
-echo Done pass 1
-samtools view -@$THR -h $1 -T $2 | secondary_rewriter --pass2 --secondaries sec.txt > sec2.txt
-echo Done pass 2
-samtools view -@$THR -h $1 -T $2 | secondary_rewriter --pass3 --secondaries sec2.txt.gz | samtools view -@$THR -T $2 - -o $3
-echo Done pass 3
 
 
+echo "Applying seq and qual to secondary reads, and sorting by line, outputting to sec2.txt..."
+samtools view -@$THR -h $1 -T $2 | secondary_rewriter --pass2 --secondaries sec.txt | LC_ALL=C sort -k1,1n --parallel=$THR > sec2.txt
+
+echo "Creating $3 with seq and qual on secondary reads..."
+samtools view -@$THR -h $1 -T $2 | secondary_rewriter --pass3 --secondaries sec2.txt | samtools view -@$THR -T $2 - -o $3
+
+echo "Finished!"
 ```
 
 The three-pass strategy works as follows
@@ -57,14 +54,17 @@ The three-pass strategy works as follows
    external file
 2. Second pass: reading secondary alignments from external file into memory,
    and then scan original SAM/BAM/CRAM to add SEQ and QUAL fields on the
-   primary alignments to the secondary alignments that are stored in a hashmap
-3. Third pass: the secondary alignments with the new SEQ and QUAL fields are
-   re-inserted in place into the SAM file, and re-encoded. By re-inserting them
-   in-place, it avoids a full `samtools sort` on the output which is
-   disk/memory/cpu intensive.
+   primary alignments to the secondary alignments, outputting a new file with
+   `line_num_of_secondary_read SEQ QUAL` and this is then sorted using the
+   external program sort
+3. Third pass: the original BAM is read line by line in parallel with the
+   `line_num_of_secondary_read SEQ QUAL` file, re-inserted in place into the
+   SAM file, and re-encoded. By re-inserting them in-place, it avoids a full
+   `samtools sort` on the output which may be disk/cpu intensive. Not that step
+   2 is still fairly disk/cpu intensive
 
-This seems laborious, but the three-pass strategy avoids loading the entire
-SAM/BAM/CRAM into memory
+This seems laborious, but the strategy avoids loading the entire SAM/BAM/CRAM
+into memory and a full samtools sort of the entire file
 
 ## Help
 
