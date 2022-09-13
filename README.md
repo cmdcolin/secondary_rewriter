@@ -5,9 +5,6 @@ secondary alignments (https://github.com/lh3/minimap2/issues/458) making it
 hard to analyze them (for example, SNPs will not be visible in a genome browser
 for secondary alignments). This program adds these back, referring to the
 primary alignment to get the SEQ and QUAL, and adding them to the secondaries.
-This is a three-pass program. The first pass collects the secondary alignments
-into an external file the second adds the SEQ and QUAL fields to the external
-file, and then the third pass inserts the secondary alignments in place.
 
 ## Install
 
@@ -42,6 +39,8 @@ samtools view -@$THR -h $1 -T $2 -F256 | secondary_rewriter --secondaries sec.tx
 
 ```
 
+## Two-pass strategy
+
 The two-pass strategy works as follows
 
 1. First pass: output ALL secondary alignments (reads with flag 256) to a
@@ -51,12 +50,9 @@ The two-pass strategy works as follows
    primary alignments to the secondary alignments, and pipe to `samtools sort`
    (needed because all the new secondary reads with BAM/CRAM at the end)
 
-This seems laborious, but the strategy avoids loading the entire SAM/BAM/CRAM
-into memory and a full samtools sort of the entire file. The samtools sort is
-the most expensive part of the process, and you can consider tuning it or using
-other programs like sambamba too
-https://www.basepairtech.com/blog/sorting-bam-files-samtools-vs-sambamba/
-(sambamba does not support CRAM afaik)
+This avoids loading the entire SAM/BAM/CRAM into memory, but does require a
+re-sort with `samtools sort`. The sort is the most expensive part of the
+process.
 
 ## Help
 
