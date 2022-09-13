@@ -60,14 +60,15 @@ fn main() -> Result<(), Box<dyn Error>> {
           // reason: it's not secondary because input to this program uses -F256 to
           // filter out secondaries and not supplementary, which do have SEQ but can be
           // hard clipped)
-          if flag & 2048 == 0 && seqmap.contains_key(&qname) {
-            let (seq, qual) = get_seq_and_qual(&line);
-
+          if flag & 2048 == 0 {
             // output secondaries (this implies out-of-order lines now, requires the
             // pipe-to-sort
-            match seqmap.get(&qname) {
+            match seqmap.get(qname) {
               Some(list) => {
+                let (seq, qual) = get_seq_and_qual(&line);
+                let primary_rev = get_flags(&line) & 16;
                 for secondary_line in list {
+                  let secondary_rev = get_flags(&secondary_line) & 16;
                   let mut vec: Vec<&str> = secondary_line.split("\t").collect();
                   vec[9] = &seq;
                   vec[10] = &qual;
@@ -96,8 +97,17 @@ fn match_pos(iter: &mut MatchIndices<char>, n: usize, s: &str) -> usize {
   }
 }
 
+fn get_flags(s: &str) -> u16 {
+  let mut iter = s.match_indices('\t');
+  let j = match_pos(&mut iter, 0, s) + 1;
+  let k = match_pos(&mut iter, 0, s);
+  let flags = &s[j..k];
+  flags.parse::<u16>().unwrap()
+}
+
 fn get_seq_and_qual(s: &str) -> (&str, &str) {
   let mut iter = s.match_indices('\t');
+
   let i = match_pos(&mut iter, 8, s) + 1;
   let l = match_pos(&mut iter, 0, s);
   let seq = &s[i..l];
@@ -109,7 +119,7 @@ fn get_seq_and_qual(s: &str) -> (&str, &str) {
   (seq, qual)
 }
 
-fn get_qname_and_flags(s: &str) -> (String, u16) {
+fn get_qname_and_flags(s: &str) -> (&str, u16) {
   let mut iter = s.match_indices('\t');
   let j = match_pos(&mut iter, 0, s);
 
@@ -117,11 +127,44 @@ fn get_qname_and_flags(s: &str) -> (String, u16) {
   let k = match_pos(&mut iter, 0, s);
   let flags = &s[j + 1..k];
   let f = flags.parse::<u16>().unwrap();
-  (String::from(qname), f)
+  (qname, f)
 }
 
 fn get_qname(s: &str) -> &str {
   let mut iter = s.match_indices('\t');
   let j = match_pos(&mut iter, 0, s);
   &s[0..j]
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn qname() {
+    let q=get_qname("ctgA_3_555_0:0:0_2:0:0_102d\t0\tctgA\t3\t37\t100M\t*\t0\t0\tTTGTTGCGGAGTTGAACAACGGCATTAGGAACACTTCCGTCTCTCACTTTTATACGATTATGATTGGTTCTTTAGCCTTGGTTTAGATTGGTAGTAGTAG\t2222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222\tXT:A:U\tNM:i:0\tX0:i:1\tX1:i:0\tXM:i:0\tXO:i:0\tXG:i:0\tMD:Z:100");
+
+    assert_eq!(q, "ctgA_3_555_0:0:0_2:0:0_102d");
+  }
+
+  #[test]
+  fn flag() {
+    let q=get_flags("ctgA_3_555_0:0:0_2:0:0_102d\t0\tctgA\t3\t37\t100M\t*\t0\t0\tTTGTTGCGGAGTTGAACAACGGCATTAGGAACACTTCCGTCTCTCACTTTTATACGATTATGATTGGTTCTTTAGCCTTGGTTTAGATTGGTAGTAGTAG\t2222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222\tXT:A:U\tNM:i:0\tX0:i:1\tX1:i:0\tXM:i:0\tXO:i:0\tXG:i:0\tMD:Z:100");
+
+    assert_eq!(q, 0);
+  }
+
+  #[test]
+  fn qname_and_flags() {
+    let q=get_qname_and_flags("ctgA_3_555_0:0:0_2:0:0_102d\t0\tctgA\t3\t37\t100M\t*\t0\t0\tTTGTTGCGGAGTTGAACAACGGCATTAGGAACACTTCCGTCTCTCACTTTTATACGATTATGATTGGTTCTTTAGCCTTGGTTTAGATTGGTAGTAGTAG\t2222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222\tXT:A:U\tNM:i:0\tX0:i:1\tX1:i:0\tXM:i:0\tXO:i:0\tXG:i:0\tMD:Z:100");
+
+    assert_eq!(q, ("ctgA_3_555_0:0:0_2:0:0_102d", 0));
+  }
+
+  #[test]
+  fn seq_and_quals() {
+    let q=get_seq_and_qual("ctgA_3_555_0:0:0_2:0:0_102d\t0\tctgA\t3\t37\t100M\t*\t0\t0\tTTGTTGCGGAGTTGAACAACGGCATTAGGAACACTTCCGTCTCTCACTTTTATACGATTATGATTGGTTCTTTAGCCTTGGTTTAGATTGGTAGTAGTAG\t2222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222\tXT:A:U\tNM:i:0\tX0:i:1\tX1:i:0\tXM:i:0\tXO:i:0\tXG:i:0\tMD:Z:100");
+
+    assert_eq!(q, ("TTGTTGCGGAGTTGAACAACGGCATTAGGAACACTTCCGTCTCTCACTTTTATACGATTATGATTGGTTCTTTAGCCTTGGTTTAGATTGGTAGTAGTAG", "2222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222"));
+  }
 }
