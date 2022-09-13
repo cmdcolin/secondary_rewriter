@@ -54,6 +54,16 @@ This avoids loading the entire SAM/BAM/CRAM into memory, but does require a
 re-sort with `samtools sort`. The sort is the most expensive part of the
 process.
 
+## Result
+
+Your secondary reads will now display with SNPs and such in a genome browser
+
+Screenshots from both IGV and JBrowse showing the same file before and after calling with `secondary_rewriter`
+
+![](img/jbrowse.png)
+
+![](img/igv.png)
+
 ## Help
 
 ```
