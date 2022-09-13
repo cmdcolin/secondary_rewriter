@@ -29,12 +29,12 @@ This small shell script automates the multi-step pipeline (supports BAM or CRAM)
 
 # write_secondaries.sh
 # usage
-# ./write_secondaries.sh <input.cram> <ref.fa> <output.cram> <nthreads default 4> <memory gigabytes default 16G>
+# ./write_secondaries.sh <input.cram> <ref.fa> <output.cram> <nthreads default 4> <memory gigabytes, per-thread, default 1G>
 # e.g.
-# ./write_secondaries.sh input.cram ref.fa output.cram 16 32G
+# ./write_secondaries.sh input.cram ref.fa output.cram 16 2G
 
 THR=${4:-4}
-MEM=${5:-16G}
+MEM=${5:-1G}
 
 
 samtools view -@$THR -h $1 -T $2 -f256 > sec.txt
