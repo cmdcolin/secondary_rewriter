@@ -70,9 +70,16 @@ fn main() -> Result<(), Box<dyn Error>> {
                 for secondary_line in list {
                   let secondary_rev = get_flags(&secondary_line) & 16;
                   let mut vec: Vec<&str> = secondary_line.split("\t").collect();
-                  vec[9] = &seq;
+
                   vec[10] = &qual;
-                  println!("{}", vec.join("\t"));
+                  if primary_rev != secondary_rev {
+                    let str = revcomp(seq);
+                    vec[9] = &str;
+                    println!("{}", vec.join("\t"));
+                  } else {
+                    vec[9] = &seq;
+                    println!("{}", vec.join("\t"));
+                  }
                 }
               }
               None => {}
@@ -87,6 +94,45 @@ fn main() -> Result<(), Box<dyn Error>> {
   }
 
   Ok(())
+}
+
+fn is_dna(dna: char) -> bool {
+  match dna {
+    'A' | 'a' | 'C' | 'c' | 'G' | 'g' | 'T' | 't' | 'U' | 'u' => true,
+    _ => false,
+  }
+}
+
+// this revcomp is CC0 https://github.com/delagoya/rusty-bio/blob/gh-pages/LICENSE
+fn revcomp(dna: &str) -> String {
+  // result vector
+  let mut rdna: String = String::with_capacity(dna.len());
+
+  // iterate through the input &str
+  for c in dna.chars().rev() {
+    // test the input
+    match is_dna(c) {
+      false => panic!("Input sequence base is not DNA: {}", dna),
+      true => rdna.push(switch_base(c)),
+    }
+  }
+  rdna
+}
+
+fn switch_base(c: char) -> char {
+  match c {
+    'a' => 't',
+    'c' => 'g',
+    't' => 'a',
+    'g' => 'c',
+    'u' => 'a',
+    'A' => 'T',
+    'C' => 'G',
+    'T' => 'A',
+    'G' => 'C',
+    'U' => 'A',
+    _ => 'N',
+  }
 }
 
 #[inline(always)]
