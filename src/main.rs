@@ -13,6 +13,9 @@ use std::str::MatchIndices;
 struct Args {
   #[clap(short, long, required(false), value_parser)]
   secondaries: Option<String>,
+
+  #[clap(short, long, required(false), takes_value = false)]
+  generate_primary_loc_tag: bool,
 }
 
 pub fn reader(filename: &str) -> Box<dyn BufRead> {
@@ -72,14 +75,20 @@ fn main() -> Result<(), Box<dyn Error>> {
                   let mut vec: Vec<&str> = secondary_line.split("\t").collect();
 
                   vec[10] = &qual;
+                  let str1;
+                  let str2;
                   if primary_rev != secondary_rev {
-                    let str = revcomp(seq);
-                    vec[9] = &str;
-                    println!("{}", vec.join("\t"));
+                    str1 = revcomp(seq);
+                    vec[9] = &str1;
                   } else {
                     vec[9] = &seq;
-                    println!("{}", vec.join("\t"));
                   }
+                  if args.generate_primary_loc_tag {
+                    let (rname, pos) = get_rname_and_pos(&line);
+                    str2 = format!("\tpl:{},{}", rname, pos);
+                    vec.push(&str2);
+                  }
+                  println!("{}", vec.join("\t"));
                 }
               }
               None => {}
@@ -165,6 +174,18 @@ fn get_seq_and_qual(s: &str) -> (&str, &str) {
   (seq, qual)
 }
 
+fn get_rname_and_pos(s: &str) -> (&str, u16) {
+  let mut iter = s.match_indices('\t');
+  let j = match_pos(&mut iter, 1, s) + 1;
+  let k = match_pos(&mut iter, 0, s);
+
+  let qname = &s[j..k];
+  let l = match_pos(&mut iter, 0, s);
+  let flags = &s[k + 1..l];
+  let f = flags.parse::<u16>().unwrap();
+  (qname, f)
+}
+
 fn get_qname_and_flags(s: &str) -> (&str, u16) {
   let mut iter = s.match_indices('\t');
   let j = match_pos(&mut iter, 0, s);
@@ -205,6 +226,13 @@ mod tests {
     let q=get_qname_and_flags("ctgA_3_555_0:0:0_2:0:0_102d\t0\tctgA\t3\t37\t100M\t*\t0\t0\tTTGTTGCGGAGTTGAACAACGGCATTAGGAACACTTCCGTCTCTCACTTTTATACGATTATGATTGGTTCTTTAGCCTTGGTTTAGATTGGTAGTAGTAG\t2222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222\tXT:A:U\tNM:i:0\tX0:i:1\tX1:i:0\tXM:i:0\tXO:i:0\tXG:i:0\tMD:Z:100");
 
     assert_eq!(q, ("ctgA_3_555_0:0:0_2:0:0_102d", 0));
+  }
+
+  #[test]
+  fn rname_and_pos() {
+    let q=get_rname_and_pos("ctgA_3_555_0:0:0_2:0:0_102d\t0\tctgA\t3\t37\t100M\t*\t0\t0\tTTGTTGCGGAGTTGAACAACGGCATTAGGAACACTTCCGTCTCTCACTTTTATACGATTATGATTGGTTCTTTAGCCTTGGTTTAGATTGGTAGTAGTAG\t2222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222\tXT:A:U\tNM:i:0\tX0:i:1\tX1:i:0\tXM:i:0\tXO:i:0\tXG:i:0\tMD:Z:100");
+
+    assert_eq!(q, ("ctgA", 3));
   }
 
   #[test]
