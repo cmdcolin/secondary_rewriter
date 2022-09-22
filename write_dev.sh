@@ -11,5 +11,5 @@ MEM=${5:-1G}
 
 
 samtools view -@$THR -h $1 -T $2 -f256 > sec.txt
-samtools view -@$THR -h $1 -T $2 -F256 | cargo run -- --secondaries sec.txt | samtools sort -@$THR -m $MEM - -o $3
+samtools view -@$THR -h $1 -T $2 -F256 | cargo run -- --generate-primary-loc-tag --secondaries sec.txt | samtools sort --reference $2 -@$THR -m $MEM - -o $3
 
