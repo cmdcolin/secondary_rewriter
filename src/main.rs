@@ -17,7 +17,7 @@ struct Args {
 
   /// Boolean flag on whether to produce a tag like pl:Z:chr1:1000 on the secondary alignments
   /// that says where the primary alignment is
-  #[clap(short, long, required(false), takes_value = false)]
+  #[clap(short, long, required(false), num_args = 0)]
   generate_primary_loc_tag: bool,
 }
 
