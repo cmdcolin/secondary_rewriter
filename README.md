@@ -1,5 +1,10 @@
 # secondary_rewriter
 
+Note: minimap2 2.25-r1173 (25 April 2023) added a --secondary-seq flag https://github.com/lh3/minimap2/commit/4483f89ee5c0e5972820a2b981ffcb88cc3eff6f which makes this workflow unnecessary
+
+You can still use this for other BAM files
+
+
 Some aligners such as minimap2 do not write the SEQ and QUAL fields to
 secondary alignments (which are sometimes called multi-mappers, see Multiple
 mapping in SAMv1.pdf https://samtools.github.io/hts-specs/SAMv1.pdf) making it
